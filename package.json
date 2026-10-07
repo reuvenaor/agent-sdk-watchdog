@@ -1,0 +1,73 @@
+{
+  "name": "agent-sdk-watchdog",
+  "version": "0.1.0",
+  "type": "module",
+  "description": "An idle watchdog for Claude Agent SDK query() sessions, with the rate-limit monitor that feeds it and an SDK warning filter.",
+  "keywords": [
+    "claude",
+    "claude-agent-sdk",
+    "watchdog",
+    "rate-limit",
+    "agent"
+  ],
+  "author": {
+    "name": "Reuven Naor",
+    "email": "info@reuvenaor.com",
+    "url": "https://github.com/reuvenaor"
+  },
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/reuvenaor/agent-sdk-watchdog.git"
+  },
+  "homepage": "https://github.com/reuvenaor/agent-sdk-watchdog#readme",
+  "bugs": {
+    "url": "https://github.com/reuvenaor/agent-sdk-watchdog/issues"
+  },
+  "engines": {
+    "node": ">=22.12"
+  },
+  "sideEffects": false,
+  "files": [
+    "dist",
+    "src",
+    "README.md",
+    "CHANGELOG.md"
+  ],
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "scripts": {
+    "lint": "eslint .",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test": "tsx test/check-rate-limit-monitor.ts && tsx test/check-sdk-warning-filter.ts && tsx test/check-watchdog.ts",
+    "build": "rm -rf dist && tsc -p tsconfig.build.json",
+    "check:package": "tsx scripts/check-package.ts",
+    "verify": "npm run lint && npm run format:check && npm run typecheck && npm test && npm run check:package",
+    "prepare": "npm run build",
+    "prepublishOnly": "npm run verify"
+  },
+  "peerDependencies": {
+    "@anthropic-ai/claude-agent-sdk": ">=0.3.280 <0.3.284"
+  },
+  "devDependencies": {
+    "@anthropic-ai/claude-agent-sdk": ">=0.3.280 <0.3.284",
+    "@arethetypeswrong/cli": "^0.18.5",
+    "@eslint/js": "^9.39.4",
+    "@types/node": "^25.8.0",
+    "eslint": "^9.39.4",
+    "eslint-config-prettier": "^10.1.8",
+    "globals": "^17.6.0",
+    "prettier": "^3.8.3",
+    "publint": "^0.3.24",
+    "tsx": "^4.22.0",
+    "typescript": "~6.0.3",
+    "typescript-eslint": "^8.59.3"
+  }
+}
