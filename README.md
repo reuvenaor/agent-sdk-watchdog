@@ -42,7 +42,7 @@ or returns a value, and you decide what to print.
 ## Install
 
 ```bash
-npm install agent-sdk-watchdog @anthropic-ai/claude-agent-sdk@0.3.283
+npm install agent-sdk-watchdog @anthropic-ai/claude-agent-sdk
 ```
 
 ## Compatibility
@@ -52,12 +52,12 @@ npm install agent-sdk-watchdog @anthropic-ai/claude-agent-sdk@0.3.283
 | Node                             | 22.12 or later. The package is ESM only; CommonJS code can `require()` it on 22.12+. |
 | TypeScript                       | 5.4 or later.                                                                        |
 | Module resolution                | `node16`, `nodenext` or `bundler`. The old `node10` (`"node"`) cannot resolve it.    |
-| `@anthropic-ai/claude-agent-sdk` | `>=0.3.280 <0.3.284`, as a peer. CI tests both ends of the range.                    |
+| `@anthropic-ai/claude-agent-sdk` | `>=0.3.280 <0.4.0`, as a peer. CI tests 0.3.280, 0.3.283 and 0.3.293.                |
 
-**Why the SDK range stops at 0.3.283.** Since SDK 0.3.284, a query with hooks, `canUseTool` or
-SDK MCP servers waits after its result for the session to go idle, for up to 10 minutes. The
-watchdog has not been checked against that wait yet. The range opens in a later release, once
-it has.
+**The wait after the result.** Since SDK 0.3.284, a query with hooks, `canUseTool` or SDK MCP
+servers waits after its result for the session to go idle, for up to 10 minutes, and its
+iterator stays open until then. The SDK bounds that wait itself. So a `result` settles the
+query: the idle policy stops until new work starts (see `handle.settle()` below).
 
 ## Quick start
 
@@ -168,8 +168,11 @@ Feed each handle from its own query only, so parallel queries keep separate cloc
 - `handle.observe(message)` takes every SDK message. Stream events, `system/thinking_tokens`
   frames and `rate_limit_event`s count as activity, and so do `tool_progress` frames when
   `toolHeartbeats` is on. A thinking model streams, so it is never killed as idle. Stream
-  events need `includePartialMessages: true`.
-- `handle.activity(toolName?)`, `handle.stream()` and `handle.heartbeat()` do the same by hand.
+  events need `includePartialMessages: true`. A `result` settles the query: no idle kill until
+  a tool boundary or a stream frame shows new work. A heartbeat does not end it. The hard
+  ceiling still applies.
+- `handle.activity(toolName?)`, `handle.stream()`, `handle.heartbeat()` and `handle.settle()`
+  do the same by hand.
 - `handle.kill` holds the kill, or `null`, and stays readable after `unregister()`.
 - `handle.unregister()`: call it when the query ends.
 
