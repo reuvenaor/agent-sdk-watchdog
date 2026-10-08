@@ -251,13 +251,15 @@ filter. A later call changes nothing and returns `false`: its options never appl
 
 ## Why
 
-The SDK repo has open reports of a `query()` iterator that never ends or never yields its
-`result`: [#403](https://github.com/anthropics/claude-agent-sdk-typescript/issues/403) (after a
-`rate_limit_event`), [#333](https://github.com/anthropics/claude-agent-sdk-typescript/issues/333)
-(after the final tool result),
-[#339](https://github.com/anthropics/claude-agent-sdk-typescript/issues/339) (after a subagent)
-and [#427](https://github.com/anthropics/claude-agent-sdk-typescript/issues/427)
-(`error_max_turns` never arrives). The watchdog turns each of those into an abort you can see.
+The SDK repo has open reports of a `query()` iterator that never ends:
+
+- [#333](https://github.com/anthropics/claude-agent-sdk-typescript/issues/333): it goes silent
+  after the final tool result, with no `result`. The idle kill aborts it after `idleMs`.
+- [#403](https://github.com/anthropics/claude-agent-sdk-typescript/issues/403): it stays open
+  after a `rate_limit_event` and a `result`. A result settles the query, so the hard ceiling ends
+  it. If you need nothing after the result, leave the loop when it arrives.
+
+Either way, the hang becomes an abort you can see, with `handle.kill` telling you which kind.
 
 ## Dependencies
 
