@@ -51,10 +51,14 @@ createWatchdog().close()
 console.log('runtime import ok')
 `
 
+/** The child env without npm_config_dry_run: under `npm publish --dry-run`, pack and install would write nothing. */
+const env = { ...process.env }
+delete env.npm_config_dry_run
+
 /** Runs a command and prints its output; throws when it fails. */
 function run(cmd: string, args: string[], cwd = root): void {
   console.log(`\n$ ${cmd} ${args.join(' ')}`)
-  execFileSync(cmd, args, { cwd, stdio: 'inherit' })
+  execFileSync(cmd, args, { cwd, env, stdio: 'inherit' })
 }
 
 /** The installed version of a dependency, looked up the way Node does: up the node_modules chain. */
@@ -82,6 +86,7 @@ try {
     ['pack', '--json', '--ignore-scripts', '--pack-destination', tmp],
     {
       cwd: root,
+      env,
       encoding: 'utf8',
     },
   )
