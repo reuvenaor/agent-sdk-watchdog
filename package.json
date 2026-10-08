@@ -1,14 +1,21 @@
 {
   "name": "agent-sdk-watchdog",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "type": "module",
   "description": "An idle watchdog for Claude Agent SDK query() sessions, with the rate-limit monitor that feeds it and an SDK warning filter.",
   "keywords": [
     "claude",
     "claude-agent-sdk",
+    "claude-code",
+    "anthropic",
+    "agent",
+    "ai-agent",
     "watchdog",
+    "timeout",
+    "hang",
+    "idle",
     "rate-limit",
-    "agent"
+    "llm"
   ],
   "author": {
     "name": "Reuven Naor",
@@ -54,10 +61,10 @@
     "prepublishOnly": "npm run verify"
   },
   "peerDependencies": {
-    "@anthropic-ai/claude-agent-sdk": ">=0.3.280 <0.3.284"
+    "@anthropic-ai/claude-agent-sdk": ">=0.3.280 <0.4.0"
   },
   "devDependencies": {
-    "@anthropic-ai/claude-agent-sdk": ">=0.3.280 <0.3.284",
+    "@anthropic-ai/claude-agent-sdk": ">=0.3.280 <0.4.0",
     "@arethetypeswrong/cli": "^0.18.5",
     "@eslint/js": "^10.0.1",
     "@types/node": "^26.6.3",

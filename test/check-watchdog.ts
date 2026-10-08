@@ -684,7 +684,6 @@ for (const [name, frame, alive] of [
   ],
   ['an assistant message', { type: 'assistant', message: { content: [] } }, false],
   ['system/init', { type: 'system', subtype: 'init', tools: [] }, false],
-  ['a result', { type: 'result', subtype: 'success' }, false],
 ] as const) {
   const wd = createWatchdog()
   const h = written(wd)
@@ -695,6 +694,72 @@ for (const [name, frame, alive] of [
     (h.kill === null) === alive,
   )
   wd.close()
+}
+
+// ── settled: after a result, only new work restarts the idle policy ──────────
+
+const RESULT = { type: 'result', subtype: 'success' } as unknown as SDKMessage
+const RATE = {
+  type: 'rate_limit_event',
+  rate_limit_info: { status: 'allowed' },
+} as unknown as SDKMessage
+const DELTA = { type: 'stream_event', event: { type: 'message_start' } } as unknown as SDKMessage
+
+// 1) The SDK's post-result idle wait (up to 10 min since 0.3.284) is not a hang.
+{
+  const wd = createWatchdog()
+  const h = written(wd)
+  h.observe(RESULT, T0 + 5 * MIN)
+  wd.tick(T0 + 40 * MIN)
+  check('settled: a result stops the idle kill', h.kill === null)
+  wd.close()
+}
+
+// 2) A heartbeat after the result is not new work: still settled.
+{
+  const wd = createWatchdog()
+  const h = written(wd)
+  h.observe(RESULT, T0 + 5 * MIN)
+  h.observe(RATE, T0 + 6 * MIN)
+  wd.tick(T0 + 40 * MIN)
+  check('settled: a rate_limit_event after the result keeps it settled', h.kill === null)
+  wd.close()
+}
+
+// 3) New work after the result (a stream frame, a tool boundary) starts the idle clock again.
+for (const [name, work] of [
+  ['a stream frame', (h: WatchdogHandle) => h.observe(DELTA, T0 + 6 * MIN)],
+  ['a tool boundary', (h: WatchdogHandle) => h.activity(undefined, T0 + 6 * MIN)],
+] as const) {
+  const wd = createWatchdog()
+  const h = written(wd)
+  h.observe(RESULT, T0 + 5 * MIN)
+  work(h)
+  wd.tick(T0 + 17 * MIN)
+  check(
+    `settled: ${name} after the result restarts the idle kill`,
+    h.kill?.kind === 'watchdog_idle',
+  )
+  wd.close()
+}
+
+// 4) settle() is the manual form of observe(result); the hard ceiling still applies.
+{
+  const wd = createWatchdog()
+  const h = written(wd)
+  h.settle()
+  wd.tick(T0 + 30 * MIN)
+  check('settled: settle() stops the idle kill', h.kill === null)
+  wd.tick(T0 + 70 * MIN)
+  check('settled: the hard ceiling still kills', h.kill?.kind === 'hard_ceiling')
+  wd.close()
+}
+
+// 5) The pure policy: a settled timeline is ok until the hard ceiling.
+{
+  const now = T0 + 30 * MIN
+  const v = evaluateWatchdog(timeline({ lastToolAt: now - 25 * MIN, settled: true }), now, 0.4)
+  check('settled timeline, 25 min idle: ok', v.verdict === 'ok', v.verdict)
 }
 
 // ── makeWatchdogHook: every tool boundary is activity; only PostToolUse names the tool ──

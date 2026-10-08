@@ -9,6 +9,8 @@ import { checkOption, resolveOptions } from './options.js'
  *   design are quiet) and while window utilization is at or above `highUtilization` (the
  *   provider paces responses).
  * - Hard ceiling: the caller's absolute cap, for a session that stays "active" forever.
+ * - Settled: after a `result`, the idle policy waits for new work. The SDK bounds its own
+ *   post-result wait (`session_state_changed: idle`, since 0.3.284).
  *
  * One idle line on purpose: a shorter line scaled by the number of live sessions killed
  * healthy ones, because each kill shortened the line for the rest.
@@ -74,6 +76,8 @@ export interface WatchdogTimeline {
   hardCeilingMs: number
   /** Latest activity of any kind; absent means `lastToolAt`. */
   lastActivityAt?: number
+  /** A `result` arrived and no new work since: only the hard ceiling applies. */
+  settled?: boolean
 }
 
 /** Pure policy: one timeline, one instant, one utilization, the limits → verdict. */
@@ -84,6 +88,7 @@ export function evaluateWatchdog(
   limits: WatchdogLimits = WATCHDOG_DEFAULTS,
 ): WatchdogVerdict {
   if (now - t.startedAt >= t.hardCeilingMs) return { verdict: 'kill', kind: 'hard_ceiling' }
+  if (t.settled) return { verdict: 'ok' }
   const lastActivityAt = Math.max(t.lastToolAt, t.lastActivityAt ?? t.lastToolAt)
   const idleMs = now - lastActivityAt
   const highUtil = utilization !== null && utilization >= limits.highUtilization
@@ -124,10 +129,12 @@ export interface WatchdogHandle {
   stream(now?: number): void
   /** A provider heartbeat (`rate_limit_event`). Moves only the idle clock: not tool progress. */
   heartbeat(now?: number): void
+  /** A `result` arrived: the idle policy waits until {@link activity} or {@link stream}. */
+  settle(): void
   /**
    * One SDK message. A stream event or a `system/thinking_tokens` frame is {@link stream}; a
    * `rate_limit_event` is {@link heartbeat}, and so is a `tool_progress` frame when
-   * `toolHeartbeats` is on. Any other message changes nothing.
+   * `toolHeartbeats` is on. A `result` is {@link settle}. Any other message changes nothing.
    */
   observe(message: SDKMessage, now?: number): void
   /** The kill, once there was one. Still readable after `unregister()`. */
@@ -234,6 +241,7 @@ export function createWatchdog(config: WatchdogConfig = {}): Watchdog {
       lastToolAt: now,
       lastActivityAt: now,
       firstWriteAt: null,
+      settled: false,
       kill: null,
       extendNoted: false,
     }
@@ -245,18 +253,27 @@ export function createWatchdog(config: WatchdogConfig = {}): Watchdog {
     const alive = (at: number): void => {
       entry.lastActivityAt = at
     }
+    const working = (at: number): void => {
+      entry.settled = false
+      alive(at)
+    }
     return {
       activity(toolName, at = c.now()) {
         entry.lastToolAt = at
-        entry.lastActivityAt = at
+        working(at)
         if (entry.firstWriteAt === null && toolName && c.writeTools.includes(toolName)) {
           entry.firstWriteAt = at
         }
       },
-      stream: (at = c.now()) => alive(at),
+      stream: (at = c.now()) => working(at),
       heartbeat: (at = c.now()) => alive(at),
+      settle() {
+        entry.settled = true
+      },
       observe(message, at = c.now()) {
-        if (isLiveness(message, c.toolHeartbeats)) alive(at)
+        if (message.type === 'result') entry.settled = true
+        else if (message.type === 'rate_limit_event') alive(at)
+        else if (isWork(message, c.toolHeartbeats)) working(at)
       },
       get kill() {
         return entry.kill
@@ -274,11 +291,10 @@ export function createWatchdog(config: WatchdogConfig = {}): Watchdog {
   return { register, tick, close, config: c }
 }
 
-/** Whether `message` shows the session is alive (see {@link WatchdogHandle.observe}). */
-function isLiveness(message: SDKMessage, toolHeartbeats: boolean): boolean {
+/** Whether `message` shows the session is working (see {@link WatchdogHandle.observe}). */
+function isWork(message: SDKMessage, toolHeartbeats: boolean): boolean {
   switch (message.type) {
     case 'stream_event':
-    case 'rate_limit_event':
       return true
     case 'system':
       return message.subtype === 'thinking_tokens'

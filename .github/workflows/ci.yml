@@ -35,14 +35,14 @@ jobs:
 
   sdk-range:
     name: SDK ${{ matrix.sdk }}
-    # Type-checks and tests against both ends of the peer range.
+    # Type-checks and tests against the low end, the last version before the post-result wait, and a recent one.
     runs-on: ubuntu-latest
     permissions:
       contents: read
     strategy:
       fail-fast: false
       matrix:
-        sdk: ['0.3.280', '0.3.283']
+        sdk: ['0.3.280', '0.3.283', '0.3.293']
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
